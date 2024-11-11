@@ -826,6 +826,5 @@ def display_infomation(region_dropdown_value, country_dropdown_value, year_dropd
 
 
 if __name__ == "__main__":
-    #app.run(debug=True) # For Deployment
     #app.run_server(debug=True, host="0.0.0.0", port=8080, use_reloader=False)
     app.run_server(debug=True)

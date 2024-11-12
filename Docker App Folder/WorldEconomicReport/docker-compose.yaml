@@ -11,7 +11,7 @@ services:
       - network
     volumes:
       - ./data:/home/data      
-
+  
 networks:
   network:
     driver: bridge

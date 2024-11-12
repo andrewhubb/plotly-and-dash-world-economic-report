@@ -1,3 +1,85 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+from dash import Dash, dcc, html, dash_table
+import dash_bootstrap_components as dbc
+from dash.dependencies import Output, Input
+from dash.exceptions import PreventUpdate
+from dash_bootstrap_templates import load_figure_template
+import dash_dangerously_set_inner_html
+import plotly.express as px
+import plotly.graph_objects as go
+
+world_data = pd.read_excel('./data/WorldBank.xlsx')
+# Add Population (M) Column - Using Millions to make it easier to read
+world_data['Population (M)'] = (world_data['GDP (USD)'] / world_data['GDP per capita (USD)']) / 1000000
+
+
+hdi_data = pd.read_csv('./data/HDI.csv')
+
+data_2014 = pd.merge(
+    world_data.query('Year  in ([2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014])'), 
+    hdi_data[['iso3',
+              'hdi_2000',
+              'hdi_2001',
+              'hdi_2002',
+              'hdi_2003',
+              'hdi_2004',
+              'hdi_2005',
+              'hdi_2006',
+              'hdi_2007',
+              'hdi_2008',
+              'hdi_2009',
+              'hdi_2010',
+              'hdi_2011',
+              'hdi_2012',
+              'hdi_2013',                         
+              'hdi_2014']], 
+    left_on='Country Code', 
+    right_on='iso3', 
+    how='left')
+# Remove unneeded column
+data_2014.drop('iso3',axis=1,inplace=True)
+
+gdp_pivot = world_data.pivot_table(
+    index = 'Year',
+    columns = 'Region',
+    values = 'GDP (USD)',   
+    aggfunc = 'sum',
+)
+gdp_pivot.reset_index(inplace=True)
+
+pop_pivot = world_data.pivot_table(
+    index = 'Year',
+    columns = 'Region',
+    values = 'Population (M)',       
+    aggfunc = 'sum',
+)
+pop_pivot.reset_index(inplace=True)
+
+data_region = data_2014.groupby('Region').agg(
+    # I added other years as a test for further development
+    # Typically we would be using just 'hdi_2014'
+    {
+        'hdi_2000': 'mean',
+        'hdi_2001': 'mean',
+        'hdi_2002': 'mean',
+        'hdi_2003': 'mean',
+        'hdi_2004': 'mean',
+        'hdi_2005': 'mean',
+        'hdi_2006': 'mean',
+        'hdi_2007': 'mean',
+        'hdi_2008': 'mean',
+        'hdi_2009': 'mean',
+        'hdi_2010': 'mean',
+        'hdi_2011': 'mean',
+        'hdi_2012': 'mean',
+        'hdi_2013': 'mean',
+        'hdi_2014': 'mean'},
+)
+
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 
 region_dict = {
@@ -17,35 +99,6 @@ population_dict = {
     '1250':1.0
 }
 # set colours
-stack1_list = [
-    "#F94144",
-    "#F3722C",
-    "#F8961E",
-    "#F9C74F",
-    "#90BE6D",
-    "#43AA8B",
-    "#577590",
-]
-stack2_list = [
-    "#F94144",
-    "#90BE6D",
-    "#577590",
-    "#F3722C",
-    "#F9C74F",
-    "#F8961E",
-    "#43AA8B",
-]
-# bubble_list = ['#90BE6D','#F3722C','#43AA8B','#F94144','#577590','#F9C74F','#F8961E']
-bubble_list = [
-    "#43AA8B",
-    "#F3722C",
-    "#F9C74F",
-    "#F94144",
-    "#577590",
-    "#F8961E",
-    "#90BE6D",
-]
-
 
 coolwarm_custom = [
     "#b40426",
@@ -71,9 +124,9 @@ with open("hdi_text.txt", "r", encoding="utf-8") as file:
 
 app = Dash(
     __name__, external_stylesheets=[dbc.themes.PULSE, dbc_css]
-)  
+)  # Temporarily commented out so tabs show somw shading if not selected
 
-server = app.server  # Place this directly after creating the app instance - Use for Deployment to Docker
+server = app.server 
 
 # We set the minsize and maxsize of the poplutation for the legend of the life expectany bubble chart
 minsize = min(data_2014["Population (M)"])  # / 10
@@ -541,14 +594,6 @@ def display_infomation(region_dropdown_value, country_dropdown_value, year_dropd
     trace.update(line=dict(color=colour), fillcolor=colour) 
     gdp_fig.update_layout(showlegend=False)
 
-    # Set the chart colours
-    #for i, region in enumerate(
-    #    gdp_pivot_filtered.columns[1:]
-    #):  # Skip the 'Year' column
-    #    gdp_fig.data[i].line.color = stack1_list[
-    #        i % len(stack1_list)
-    #    ]  # Use modulo for safety in case of more regions
-
     gdp_fig.update_layout(yaxis_title="GDP (Trillions)", xaxis_title="Year", showlegend=False)
     gdp_fig.update_xaxes(showgrid=False)
     gdp_fig.update_yaxes(showgrid=False)
@@ -574,8 +619,7 @@ def display_infomation(region_dropdown_value, country_dropdown_value, year_dropd
         id_vars=['Year'],             # The 'Year' column will remain fixed
         var_name='Region',            # New column that will store region names
         value_name='Population'       # New column that will store population values
-    )
-    print(pop_long.head())
+    )   
     
     first_year = pop_long["Year"].min()
     final_year = pop_long["Year"].max()
@@ -606,16 +650,7 @@ def display_infomation(region_dropdown_value, country_dropdown_value, year_dropd
         pop_long,
         x="Year",
         y="Population",
-        color="Region",
-    #    pop_pivot_filtered,
-    #    x="Year",  # Specify 'Year' as x-axis
-    #    y=[
-    #        region for region in gdp_pivot_filtered.columns if region != "Year"
-    #    ],  # Specify all regions as y-axis
-    #labels={
-    #        "value": "Population (Billions)",
-    #        "variable": "Region",
-    #},  # Custom labels
+        color="Region",   
         title=None
     )    
 
@@ -632,13 +667,7 @@ def display_infomation(region_dropdown_value, country_dropdown_value, year_dropd
     pop_fig.update_yaxes(showgrid=False)
     pop_fig.update_layout(yaxis_title="Population (Billions)", xaxis_title="Year",showlegend=False)
     
-    # Set the chart colours
-    region_list = dataframe["Region"].unique()
-    colour_map = {
-        region: bubble_list[i % len(bubble_list)]
-        for i, region in enumerate(region_list)
-    }
-   
+  
     # Create the bubble chart
     minsize = min(data_2014["Population (M)"])
     maxsize = max(data_2014["Population (M)"])
@@ -678,8 +707,8 @@ def display_infomation(region_dropdown_value, country_dropdown_value, year_dropd
         y = data_region_filtered['Region'],
         x = 'HDI',
         color='Region',
-        color_discrete_map=colour_map,
-        title=None
+        color_discrete_map=region_dict,
+        title=None,
     )
     hdi_fig.update_layout(        
         xaxis_title='HDI',
@@ -706,9 +735,7 @@ def display_infomation(region_dropdown_value, country_dropdown_value, year_dropd
     hdi_fig.update_traces(
         texttemplate='%{x:.0%}',  # Format labels as whole percentages
         textposition='outside'  # Position labels outside the bars
-    )
-    
-    
+    )       
     
     dataframe = dataframe.query(f'`Country Name` != "Iceland" and Year == {year_dropdown_value}')
     max_gdp = max(dataframe['GDP per capita (USD)']) * 0.7 # To limit the yaxis as the default value is too high at 200K.        
@@ -771,6 +798,7 @@ def display_infomation(region_dropdown_value, country_dropdown_value, year_dropd
     return title, gdp_fig, pop_fig, life_fig, hdi_fig, electric_fig,pop_title
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":    
     #app.run_server(debug=True, mode="inline", port=8658) # Used for deployment in Jupyter Notebook
     app.run_server(debug=True) # Used for deployment to Docker
+
